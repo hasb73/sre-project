@@ -29,7 +29,7 @@ echo "JupyterHub hub scaled to 0"
 
 # Scale down Microservices
 kubectl scale deployment business-logic -n app --replicas=0
-kubectl scale deployment data-ingest-n app --replicas=0
+kubectl scale deployment data-ingest -n app --replicas=0
 kubectl scale deployment frontend-api -n app --replicas=0
 echo "Microservices scaled to 0"
 echo ""
@@ -103,14 +103,14 @@ echo "JupyterHub hub scaled to 1"
 
 # Scale up Microservices
 kubectl scale deployment business-logic -n app --replicas=1
-kubectl scale deployment data-ingest-n app --replicas=1
+kubectl scale deployment data-ingest -n app --replicas=1
 kubectl scale deployment frontend-api -n app --replicas=1
 echo "Microservices scaled to 1"
 
 echo "Waiting for pods to be ready..."
 kubectl wait --for=condition=ready --timeout=120s pod -l component=hub -n jupyterhub
 kubectl wait --for=condition=ready --timeout=120s pod -l app=business-logic -n app
-kubectl wait --for=condition=ready --timeout=120s pod -l app=data-ingest-n app
+kubectl wait --for=condition=ready --timeout=120s pod -l app=data-ingest -n app
 kubectl wait --for=condition=ready --timeout=120s pod -l app=frontend-api -n app
 
 # Check JupyterHub pod health

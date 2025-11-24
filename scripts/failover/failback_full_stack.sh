@@ -32,7 +32,7 @@ echo "JupyterHub hub scaled to 0"
 
 # Scale down Microservices
 kubectl scale deployment business-logic -n app --replicas=0
-kubectl scale deployment data-ingest-n app --replicas=0
+kubectl scale deployment data-ingest -n app --replicas=0
 kubectl scale deployment frontend-api-n app --replicas=0
 echo "Microservices scaled to 0"
 echo ""
