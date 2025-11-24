@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-secondary
+  namespace: database
+  labels:
+    app: postgresql
+    role: secondary
+    environment: dr
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: multi-region-dr
+spec:
+  serviceName: postgresql-secondary
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+      role: secondary
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        role: secondary
+        environment: dr
+    spec:
+      initContainers:
+      - name: setup-replication
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Initializing PostgreSQL replica in DR region..."
+          
+          # Check if data directory is empty (first run)
+          if [ ! -f /var/lib/postgresql/data/pgdata/PG_VERSION ]; then
+            echo "Setting up cross-region replication from primary..."
+            
+            # Wait for primary to be ready (cross-region connection)
+            echo "Waiting for primary PostgreSQL (cross-region)..."
+            until pg_isready -h ${PRIMARY_HOST} -p 5432 -U postgres; do
+              echo "Primary not ready yet, retrying in 10 seconds..."
+              sleep 10
+            done
+            
+            echo "Primary is ready, starting base backup..."
+            
+            # Create .pgpass file for authentication
+            echo "${PRIMARY_HOST}:5432:*:replicator:${REPLICATION_PASSWORD}" > ~/.pgpass
+            chmod 0600 ~/.pgpass
+            
+            # Use pg_basebackup to clone from primary (cross-region)
+            pg_basebackup -h ${PRIMARY_HOST} -p 5432 -U replicator -D /var/lib/postgresql/data/pgdata -Fp -Xs -P -R
+            
+            echo "Base backup completed successfully"
+            
+            # Create standby.signal file (PostgreSQL 12+)
+            touch /var/lib/postgresql/data/pgdata/standby.signal
+            
+            # Configure primary connection info for cross-region replication
+            cat >> /var/lib/postgresql/data/pgdata/postgresql.auto.conf <<EOF
+          primary_conninfo = 'host=${PRIMARY_HOST} port=5432 user=replicator password=${REPLICATION_PASSWORD} application_name=dr-secondary'
+          primary_slot_name = 'replication_slot_1'
+          EOF
+            
+            echo "DR replica initialization complete"
+          else
+            echo "Data directory already initialized, skipping base backup"
+          fi
+        env:
+        - name: PRIMARY_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: postgresql-secondary-config
+              key: primary_host
+        - name: REPLICATION_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: replication-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - name: postgresql
+          containerPort: 5432
+          protocol: TCP
+        env:
+        - name: POSTGRES_DB
+          value: "appdb"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: config
+          mountPath: /etc/postgresql
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: postgresql-secondary-config
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "azure-keyvault-postgresql"
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: postgresql
+        role: secondary
+        environment: dr
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: managed-premium
+      resources:
+        requests:
+          storage: 10Gi

@@ -1,0 +1,111 @@
+# Network Policy for PostgreSQL Database Namespace
+# Allows microservices from default namespace to access database
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-microservices
+  namespace: database
+spec:
+  podSelector:
+    matchLabels:
+      app: postgresql
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from microservices in default namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: default
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow from JupyterHub namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: jupyterhub
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow from App namespace (microservices)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: app
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow internal database namespace traffic (for replication)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow from same namespace (for health checks, etc.)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: database
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Network Policy for Database Egress
+# Allows PostgreSQL to communicate with other databases for replication
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-egress
+  namespace: database
+spec:
+  podSelector:
+    matchLabels:
+      app: postgresql
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Allow PostgreSQL replication to other database pods
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow cross-region replication (all IPs for VNet peering)
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8  # Private IP range for Azure VNets
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow HTTPS for Key Vault access (if using CSI driver)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32  # Block metadata service
+    ports:
+    - protocol: TCP
+      port: 443

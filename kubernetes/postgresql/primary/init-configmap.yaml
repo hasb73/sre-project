@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-primary-init
+  namespace: database
+data:
+  01-create-replication-user.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Create replication user
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      -- Create replication user
+      CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '${REPLICATION_PASSWORD:-replicator123}';
+      
+      -- Grant necessary permissions
+      GRANT CONNECT ON DATABASE appdb TO replicator;
+    EOSQL
+    
+    echo "Replication user created successfully"
+  
+  02-configure-replication.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Copy custom postgresql.conf if exists
+    if [ -f /etc/postgresql/postgresql.conf ]; then
+      cp /etc/postgresql/postgresql.conf /var/lib/postgresql/data/pgdata/postgresql.conf
+      echo "Custom postgresql.conf applied"
+    fi
+    
+    # Copy custom pg_hba.conf if exists
+    if [ -f /etc/postgresql/pg_hba.conf ]; then
+      cp /etc/postgresql/pg_hba.conf /var/lib/postgresql/data/pgdata/pg_hba.conf
+      echo "Custom pg_hba.conf applied"
+    fi
+    
+    # Create replication slot
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      SELECT pg_create_physical_replication_slot('replication_slot_1');
+    EOSQL
+    
+    echo "Replication slot created successfully"

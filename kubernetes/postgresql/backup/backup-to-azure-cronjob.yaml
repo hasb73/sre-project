@@ -1,0 +1,122 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup-to-azure
+  namespace: database
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: postgresql-backup-azure
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup-to-azure
+            image: ubuntu:22.04
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -e
+                
+                TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                BACKUP_FILE="postgresql_backup_${TIMESTAMP}.sql.gz"
+                TEMP_DIR="/tmp/backup"
+                
+                echo "=========================================="
+                echo "PostgreSQL Backup to Azure Blob Storage"
+                echo "Started at: $(date)"
+                echo "=========================================="
+                echo ""
+                
+                # Install required tools
+                echo "Installing PostgreSQL client and azcopy..."
+                apt-get update -qq
+                apt-get install -y -qq postgresql-client wget > /dev/null
+                
+                cd /tmp
+                wget -q https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
+                tar -xzf azcopy.tar.gz
+                cp azcopy_linux_amd64_*/azcopy /usr/local/bin/
+                chmod +x /usr/local/bin/azcopy
+                rm -rf azcopy*
+                
+                echo "✓ Tools installed"
+                echo ""
+                
+                # Create backup
+                mkdir -p ${TEMP_DIR}
+                echo "Creating database backup..."
+                pg_dumpall -h postgresql -U postgres | gzip > ${TEMP_DIR}/${BACKUP_FILE}
+                
+                if [ ! -f ${TEMP_DIR}/${BACKUP_FILE} ]; then
+                    echo "✗ Backup creation failed"
+                    exit 1
+                fi
+                
+                BACKUP_SIZE=$(du -h ${TEMP_DIR}/${BACKUP_FILE} | cut -f1)
+                echo "✓ Backup created: ${BACKUP_FILE} (${BACKUP_SIZE})"
+                echo ""
+                
+                # Upload to Azure Blob Storage
+                echo "Uploading to Azure Blob Storage..."
+                CONTAINER_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}?${SAS_TOKEN}"
+                
+                azcopy copy "${TEMP_DIR}/${BACKUP_FILE}" "${CONTAINER_URL}/${BACKUP_FILE}" \
+                  --overwrite=true \
+                  --check-md5 FailIfDifferent \
+                  --put-md5
+                
+                echo "✓ Backup uploaded to Azure"
+                echo ""
+                
+                # Cleanup old backups in Azure (keep last 30 days)
+                echo "Listing backups in Azure..."
+                azcopy list "${CONTAINER_URL}" --properties LastModifiedTime | grep postgresql_backup || echo "No backups found"
+                
+                echo ""
+                echo "Note: Manual cleanup of old backups required"
+                echo "To delete backups older than 30 days, use Azure Portal or az CLI"
+                
+                # Cleanup local temp
+                rm -rf ${TEMP_DIR}
+                
+                echo ""
+                echo "=========================================="
+                echo "✓ Backup to Azure completed successfully"
+                echo "Completed at: $(date)"
+                echo "=========================================="
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-password
+            - name: STORAGE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-backup-azure-secret
+                  key: storage-account
+            - name: CONTAINER_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-backup-azure-secret
+                  key: container-name
+            - name: SAS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-backup-azure-secret
+                  key: sas-token
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi

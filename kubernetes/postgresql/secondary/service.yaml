@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-secondary
+  namespace: database
+  labels:
+    app: postgresql
+    role: secondary
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgresql
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgresql
+    role: secondary
+  clusterIP: None  # Headless service for StatefulSet
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-readonly
+  namespace: database
+  labels:
+    app: postgresql
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgresql
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgresql
+    role: secondary

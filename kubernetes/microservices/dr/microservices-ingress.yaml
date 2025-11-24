@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: microservices-ingress
+  namespace: app
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/cookie-based-affinity: "true"
+    appgw.ingress.kubernetes.io/request-timeout: "180"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    appgw.ingress.kubernetes.io/rule-priority: '100'
+spec:
+  rules:
+  - http:
+      paths:
+      # Frontend API - main application entry point
+      - path: /api/*
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-api
+            port:
+              number: 8080
+      # Health check endpoint
+      - path: /health/*
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-api
+            port:
+              number: 8080
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: microservices-ingress-https
+#   namespace: app
+#   annotations:
+#     kubernetes.io/ingress.class: azure/application-gateway
+#     appgw.ingress.kubernetes.io/cookie-based-affinity: "true"
+#     appgw.ingress.kubernetes.io/request-timeout: "180"
+#     appgw.ingress.kubernetes.io/connection-draining: "true"
+#     appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+#     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+#     appgw.ingress.kubernetes.io/ssl-redirect: "true"
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+# spec:
+#   tls:
+#   - hosts:
+#     - api.example.com
+#     secretName: microservices-tls
+#   rules:
+#   - host: api.example.com
+#     http:
+#       paths:
+#       - path: /api/*
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: frontend-api
+#             port:
+#               number: 8080
+#       - path: /health/*
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: frontend-api
+#             port:
+#               number: 8080

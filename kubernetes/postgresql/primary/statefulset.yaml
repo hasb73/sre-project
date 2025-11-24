@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-primary
+  namespace: database
+  labels:
+    app: postgresql
+    role: primary
+spec:
+  serviceName: postgresql-primary
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+      role: primary
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        role: primary
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - name: postgresql
+          containerPort: 5432
+          protocol: TCP
+        env:
+        - name: POSTGRES_DB
+          value: "appdb"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF8 --locale=en_US.UTF-8"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: config
+          mountPath: /etc/postgresql
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U postgres
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: postgresql-primary-config
+      - name: init-scripts
+        configMap:
+          name: postgresql-primary-init
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "azure-keyvault-postgresql"
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: postgresql
+        role: primary
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: managed-premium
+      resources:
+        requests:
+          storage: 10Gi

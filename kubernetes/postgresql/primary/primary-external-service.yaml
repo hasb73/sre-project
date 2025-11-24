@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-primary-external
+  namespace: database
+  annotations:
+    # Use internal LoadBalancer for secure cross-cluster access via VNet peering
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  labels:
+    app: postgresql
+    role: primary
+    purpose: cross-cluster-replication
+spec:
+  type: LoadBalancer
+  selector:
+    app: postgresql
+    role: primary
+  ports:
+  - name: postgresql
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours for long-running replication connections
+  # Optional: Restrict access to specific IPs (add your DR cluster's public IP)
+  # loadBalancerSourceRanges:
+  #   - <DR-CLUSTER-PUBLIC-IP>/32

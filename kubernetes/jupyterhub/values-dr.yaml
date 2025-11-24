@@ -1,0 +1,208 @@
+# JupyterHub Helm Values - DR Region
+# This configuration deploys JupyterHub in the DR Azure region
+# Uses Azure Key Vault for secrets management via CSI driver
+
+# Hub configuration
+hub:
+  # Resource allocation for hub pod
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  # Database for hub state (using PostgreSQL in database namespace)
+  # DR JupyterHub configuration:
+  # - Before failover: Uses read-only secondary (limited functionality)
+  # - After failover: Secondary is promoted to primary (full functionality)
+  db:
+    type: postgres
+    # Database URL is provided via existingSecret from Key Vault
+    # Note: In DR, this points to postgresql-secondary.database.svc.cluster.local
+  
+  # Use existing secret for database credentials (synced from Key Vault via CSI driver)
+  existingSecret: jupyterhub-secrets
+  
+  extraEnv:
+    JUPYTERHUB_DB_URL:
+      valueFrom:
+        secretKeyRef:
+          name: jupyterhub-secrets
+          key: hub.db.url
+  
+  # Mount Key Vault secrets via CSI driver
+  extraVolumes:
+    - name: secrets-store
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: "azure-keyvault-jupyterhub"
+  
+  extraVolumeMounts:
+    - name: secrets-store
+      mountPath: "/mnt/secrets-store"
+      readOnly: true
+
+  
+  # Hub configuration
+  config:
+    JupyterHub:
+      admin_access: true
+      authenticator_class: dummy
+    
+    # DummyAuthenticator for demo/testing
+    # Replace with AzureAdOAuthenticator or other production authenticator
+    DummyAuthenticator:
+      password: "demo123"
+  
+  # Extra configuration
+  extraConfig:
+    customConfig: |
+      # Set region identifier
+      c.JupyterHub.extra_labels = {'region': 'dr'}
+      
+      # Customize user environment
+      c.Spawner.default_url = '/lab'
+      
+      # Set user storage capacity
+      c.Spawner.storage_capacity = '10Gi'
+      
+      # Configure database URL from environment variable (Key Vault secret)
+      import os
+      db_url = os.environ.get('JUPYTERHUB_DB_URL')
+      if db_url:
+          c.JupyterHub.db_url = db_url
+      
+      # Trust X-Forwarded headers from proxy (Application Gateway)
+      c.JupyterHub.trust_downstream_proxy = True
+      # Cookie settings for HTTP access (Chrome compatibility)
+      c.JupyterHub.cookie_options = {'SameSite': 'None', 'Secure': False}
+      # Disable XSRF checks as a workaround for HTTP access
+      c.JupyterHub.xsrf_cookies = False
+
+# Proxy configuration (handles routing to user pods)
+proxy:
+  # Use ClusterIP when using Ingress Controller (Requirement 4.3)
+  service:
+    type: ClusterIP
+    # Note: Changed from LoadBalancer to ClusterIP to use Ingress Controller
+    # The Ingress Controller will handle external access with proper domain and SSL/TLS
+  
+  # HTTPS configuration (optional, recommended for production)
+  https:
+    enabled: false
+    # Enable this in production with cert-manager
+    # type: letsencrypt
+    # letsencrypt:
+    #   contactEmail: admin@example.com
+  
+  # Chp (configurable-http-proxy) resources
+  chp:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Single-user server configuration
+singleuser:
+  # Default image for user pods
+  image:
+    name: jupyter/datascience-notebook
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Resource allocation per user (Requirement 4.2)
+  cpu:
+    limit: 0.5
+    guarantee: 0.1
+  memory:
+    limit: 2G
+    guarantee: 1G
+  
+  # Persistent storage for user notebooks (Requirement 4.2)
+  # Using Azure Files for cross-region replication
+  storage:
+    type: static
+    static:
+      pvcName: jupyterhub-users-pvc  # Shared Azure Files storage
+      subPath: '{username}'           # Each user gets their own subdirectory
+    capacity: 10Gi  # Per-user quota (not enforced by Azure Files)
+    homeMountPath: /home/jovyan
+  
+  # User pod lifecycle
+  startTimeout: 600
+  
+  # Extra environment variables
+  extraEnv:
+    REGION: "dr"
+    JUPYTERHUB_SINGLEUSER_APP: "jupyter_server.serverapp.ServerApp"
+    JUPYTER_ALLOW_INSECURE_WRITES: "1"
+    # Store Jupyter runtime files locally to avoid SQLite locking issues on Azure Files
+    JUPYTER_RUNTIME_DIR: "/tmp/jupyter_runtime"
+    JUPYTER_DATA_DIR: "/tmp/jupyter_data"
+  
+  # Network policy (optional, for enhanced security)
+  networkPolicy:
+    enabled: false
+    # Enable in production to restrict pod-to-pod communication
+  
+  # User pod scheduling
+  extraTolerations: []
+  extraNodeAffinity:
+    required: []
+    preferred: []
+
+# Scheduling configuration
+scheduling:
+  userScheduler:
+    enabled: false
+    # Enable for better pod distribution across nodes
+  
+  podPriority:
+    enabled: false
+  
+  userPlaceholder:
+    enabled: false
+    # Enable to pre-warm nodes for faster user pod startup
+
+# Pre-puller configuration (pulls images to nodes before users spawn)
+prePuller:
+  hook:
+    enabled: true
+  continuous:
+    enabled: false
+    # Enable in production to keep images updated
+
+# Ingress configuration
+# DISABLED: Using Application Gateway Ingress Controller (AGIC) instead
+# Ingress is managed separately via kubernetes/application-gateway/jupyterhub-ingress-fixed.yaml
+# JupyterHub runs at root path (/, /hub/*, /user/*)
+# Microservices runs at /api/* and /health/*
+ingress:
+  enabled: false
+
+
+# Custom resource definitions
+cull:
+  enabled: true
+  timeout: 3600  # Cull idle servers after 1 hour
+  every: 600     # Check every 10 minutes
+  maxAge: 0      # Don't cull based on age
+
+# Debug settings
+debug:
+  enabled: false
+
+# RBAC settings
+rbac:
+  create: true
+
+# Global settings
+fullnameOverride: ""
+nameOverride: ""

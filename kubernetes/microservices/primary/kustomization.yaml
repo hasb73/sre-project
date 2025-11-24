@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: app
+
+resources:
+  - secrets.yaml
+  - configmap.yaml
+  - frontend-api.yaml
+  - business-logic.yaml
+  - data-ingest.yaml
+  - microservices-ingress.yaml
+
+labels:
+  - pairs:
+      environment: primary
+      managed-by: kustomize
+
+# Add common annotations
+commonAnnotations:
+  deployment.region: "primary"
+  deployment.tool: "kustomize"

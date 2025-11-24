@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: azure-files-sync-dr-to-primary
+  namespace: jupyterhub
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: azure-files-sync
+        direction: dr-to-primary
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: azcopy
+        image: ubuntu:22.04
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -e
+            echo "=========================================="
+            echo "Azure Files Sync: DR -> Primary (On-Demand)"
+            echo "Started at: $(date)"
+            echo "=========================================="
+            
+            # Install azcopy
+            echo "Installing azcopy..."
+            apt-get update -qq && apt-get install -y -qq wget > /dev/null
+            cd /tmp
+            wget -q https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
+            tar -xzf azcopy.tar.gz
+            cp azcopy_linux_amd64_*/azcopy /usr/local/bin/
+            chmod +x /usr/local/bin/azcopy
+            rm -rf azcopy*
+            
+            # Source and destination (DR -> Primary)
+            SOURCE="https://drst01.file.core.windows.net/jupyterhub-users?${DR_SAS}"
+            DEST="https://primaryst01.file.core.windows.net/jupyterhub-users?${PRIMARY_SAS}"
+            
+            echo "Source: drst01/jupyterhub-users"
+            echo "Destination: primaryst01/jupyterhub-users"
+            echo ""
+            
+            # Sync files - preserve newer files
+            echo "Starting reverse sync (DR -> Primary)..."
+            echo "Note: This will sync files from DR back to Primary"
+            echo "Files modified in DR will overwrite older versions in Primary"
+            echo ""
+            
+            azcopy sync "$SOURCE" "$DEST" \
+              --recursive=true \
+              --delete-destination=false \
+              --put-md5
+            
+            echo ""
+            echo "=========================================="
+            echo "✓ Reverse sync completed successfully"
+            echo "Completed at: $(date)"
+            echo "=========================================="
+        env:
+        - name: PRIMARY_SAS
+          valueFrom:
+            secretKeyRef:
+              name: azcopy-sync-secrets
+              key: primary-sas
+        - name: DR_SAS
+          valueFrom:
+            secretKeyRef:
+              name: azcopy-sync-secrets
+              key: dr-sas
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

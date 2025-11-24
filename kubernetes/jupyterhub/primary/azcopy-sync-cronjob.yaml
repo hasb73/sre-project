@@ -1,0 +1,81 @@
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: azure-files-sync
+  namespace: jupyterhub
+spec:
+  schedule: "*/15 * * * *"  # Every 15 minutes
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run multiple syncs simultaneously
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: azure-files-sync
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: azcopy
+            image: ubuntu:22.04
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -e
+                echo "=========================================="
+                echo "Azure Files Sync Job"
+                echo "Started at: $(date)"
+                echo "=========================================="
+                
+                # Install azcopy
+                echo "Installing azcopy..."
+                apt-get update -qq && apt-get install -y -qq wget > /dev/null
+                cd /tmp
+                wget -q https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
+                tar -xzf azcopy.tar.gz
+                cp azcopy_linux_amd64_*/azcopy /usr/local/bin/
+                chmod +x /usr/local/bin/azcopy
+                rm -rf azcopy*
+                
+                # Source and destination
+                SOURCE="https://primaryst01.file.core.windows.net/jupyterhub-users?${PRIMARY_SAS}"
+                DEST="https://drst01.file.core.windows.net/jupyterhub-users?${DR_SAS}"
+                
+                echo "Source: primaryst01/jupyterhub-users"
+                echo "Destination: drst01/jupyterhub-users"
+                echo ""
+                
+                # Sync files
+                echo "Starting sync..."
+                azcopy sync "$SOURCE" "$DEST" \
+                  --recursive=true \
+                  --delete-destination=false \
+                  --put-md5
+                
+                echo ""
+                echo "=========================================="
+                echo "✓ Sync completed successfully"
+                echo "Completed at: $(date)"
+                echo "=========================================="
+            env:
+            - name: PRIMARY_SAS
+              valueFrom:
+                secretKeyRef:
+                  name: azcopy-sync-secrets
+                  key: primary-sas
+            - name: DR_SAS
+              valueFrom:
+                secretKeyRef:
+                  name: azcopy-sync-secrets
+                  key: dr-sas
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
