@@ -8,6 +8,8 @@
 
 
 
+
+
 The setup uses Azure with AKS and supporting services to deploy a HA and DR setup for JupyterHub and a stateless microservices implementation. The primary goals are high availability and resiliency in case of a regional outage with minimal RPO and RTO.
 
 ## Core Components
