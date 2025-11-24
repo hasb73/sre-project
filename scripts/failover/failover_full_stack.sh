@@ -133,22 +133,5 @@ fi
 echo "All applications are running and ready"
 echo ""
 
-# === Summary ===
-echo "========================================"
 echo "  Failover Completed Successfully!"
-echo "========================================"
-echo ""
-echo "Summary:"
-echo "  - Primary applications: Scaled down"
-echo "  - Azure Files: Synced to DR"
-echo "  - DR Database: Promoted to primary"
-echo "  - DR JupyterHub: Running and ready"
-echo "  - DR Microservices: Running and ready"
-echo ""
-echo "Next Steps:"
-echo "  1. Update Traffic Manager to point to DR"
-echo "  2. Verify application access via DR endpoint"
-echo "  3. Monitor DR cluster performance"
-echo ""
-echo "Current context:"
-kubectl config current-context
+
