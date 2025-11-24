@@ -1,7 +1,7 @@
 
 # Azure Multi-Region Disaster Recovery Solution
 
-<img width="2803" height="2501" alt="image" src="https://github.com/user-attachments/assets/9c27ead6-d9d2-47b4-abd0-7a4d00da2a60" />
+<img width="3376" height="3918" alt="image" src="https://github.com/user-attachments/assets/3152f8b1-3baf-4b7f-b2d0-790f2c4b9473" />
 
 
 
