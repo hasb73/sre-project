@@ -1,4 +1,9 @@
+
 # Azure Multi-Region Disaster Recovery Solution
+
+<img width="2803" height="2501" alt="image" src="https://github.com/user-attachments/assets/9c27ead6-d9d2-47b4-abd0-7a4d00da2a60" />
+
+
 
 The setup uses Azure with AKS and supporting services to deploy a HA and DR setup for JupyterHub and a stateless microservices implementation. The primary goals are high availability and resiliency in case of a regional outage with minimal RPO and RTO.
 
