@@ -274,7 +274,7 @@ deploy_microservices() {
     print_success "Microservices deployed"
 
     print_info "Setup the app namespace"
-    sh $PROJECT_ROOT/kubernetes/microservices/setup-app-namespace.sh
+    sh $PROJECT_ROOT/kubernetes/microservices/scripts/setup-app-namespace.sh
 
 }
 

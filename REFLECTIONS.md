@@ -1,4 +1,4 @@
-## 🏗️ Architecture Decisions
+## Architecture Decisions
 
 ### Why Active/Passive?
 

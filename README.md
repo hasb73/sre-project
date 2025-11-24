@@ -353,3 +353,161 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 - Traffic Manager DNS Propagation: ~ 1 minute (TTL is 10s and health probe is 10s)
 
 
+## Root Directory
+
+```
+sre-project/
+├── app/                          # Microservices application code
+├── kubernetes/                   # Kubernetes manifests and configurations
+├── scripts/                      # Automation scripts for deployment and operations
+├── terraform/                    # Infrastructure as Code (Terraform)
+├── README.md                     # Main project documentation
+└── REFLECTIONS.md               # Project reflections and learnings
+```
+
+---
+
+## Application Directory (`app/`)
+
+Contains the source code for three Python Flask microservices.
+
+```
+app/
+├── business-logic/              # Business logic microservice
+│   ├── app.py                   # Flask application for business operations
+│   ├── Dockerfile               # Container image definition
+│   └── requirements.txt         # Python dependencies
+│
+├── data-ingest/                 # Data ingestion microservice
+│   ├── app.py                   # Flask application for data processing
+│   ├── Dockerfile               # Container image definition
+│   └── requirements.txt         # Python dependencies
+│
+├── frontend-api/                # Frontend API gateway
+│   ├── app.py                   # Flask application for API endpoints
+│   ├── Dockerfile               # Container image definition
+│   └── requirements.txt         # Python dependencies
+│
+├── build-and-push.sh            # Script to build and push all images to ACR
+├── init-db.sql                  # Database initialization SQL script
+└── README.md                    # Application documentation
+```
+
+---
+
+## Kubernetes Directory (`kubernetes/`)
+
+Contains all Kubernetes manifests organized by component and environment.
+
+### JupyterHub (`kubernetes/jupyterhub/`)
+
+```
+kubernetes/jupyterhub/
+├── primary/                     # Primary region JupyterHub resources
+│   ├── azcopy-sync-cronjob.yaml        # CronJob for syncing user files to DR
+│   ├── azure-files-pv-primary.yaml     # PersistentVolume for user storage
+│   ├── jupyterhub-ingress.yaml         # Ingress configuration
+│   └── secret-provider-class-primary.yaml  # Key Vault CSI driver config
+│
+├── dr/                          # DR region JupyterHub resources
+│   ├── azcopy-dr-to-primary-job.yaml   # Job for failback file sync
+│   ├── azure-files-pv-dr.yaml          # PersistentVolume for DR storage
+│   └── secret-provider-class-dr.yaml   # Key Vault CSI driver config for DR
+│
+├── scripts/                     # JupyterHub utility scripts
+│   ├── azcopy-secret-generation.sh     # Generate AzCopy SAS tokens
+│   └── verify-database-replication.sh  # Verify JupyterHub DB replication
+│
+├── values-primary.yaml          # Helm values for primary JupyterHub
+├── values-dr.yaml               # Helm values for DR JupyterHub
+└── README.md                    # JupyterHub deployment documentation
+```
+
+### Microservices (`kubernetes/microservices/`)
+
+```
+kubernetes/microservices/
+├── primary/                     # Primary region microservices
+│   ├── business-logic.yaml      # Business logic deployment and service
+│   ├── data-ingest.yaml         # Data ingest deployment and service
+│   ├── frontend-api.yaml        # Frontend API deployment and service
+│   ├── configmap.yaml           # Environment configuration
+│   ├── kustomization.yaml       # Kustomize configuration
+│   └── microservices-ingress.yaml  # Ingress for microservices
+│
+├── dr/                          # DR region microservices
+│   ├── business-logic.yaml      # Business logic deployment (scaled down)
+│   ├── data-ingest.yaml         # Data ingest deployment (scaled down)
+│   ├── frontend-api.yaml        # Frontend API deployment (scaled down)
+│   ├── configmap.yaml           # DR environment configuration
+│   ├── kustomization.yaml       # Kustomize configuration for DR
+│   └── microservices-ingress.yaml  # Ingress for DR microservices
+│
+└── scripts/                     # Microservices utility scripts
+    ├── setup-app-namespace.sh   # Create and configure app namespace
+    ├── test-app.sh              # Test microservices endpoints
+    └── test-database.sh         # Test database connectivity
+```
+
+### PostgreSQL (`kubernetes/postgresql/`)
+
+```
+kubernetes/postgresql/
+├── primary/                     # Primary PostgreSQL database
+│   ├── statefulset.yaml         # Primary database StatefulSet
+│   ├── service.yaml             # Service for primary database
+│   ├── configmap.yaml           # PostgreSQL configuration
+│   ├── init-configmap.yaml      # Initialization scripts
+│   ├── namespace.yaml           # Database namespace definition
+│   ├── network-policy.yaml      # Network policies for database access
+│   ├── primary-external-service.yaml  # External service for replication
+│   ├── secret-provider-class.yaml     # Key Vault integration
+│   └── kustomization.yaml       # Kustomize configuration
+│
+├── secondary/                   # Secondary PostgreSQL database (DR)
+│   ├── statefulset.yaml         # Secondary database StatefulSet with replication
+│   ├── service.yaml             # Service for secondary database
+│   ├── configmap.yaml           # PostgreSQL configuration for standby
+│   ├── namespace.yaml           # Database namespace for DR
+│   ├── secret-provider-class.yaml     # Key Vault integration for DR
+│   └── kustomization.yaml       # Kustomize configuration for DR
+│
+├── backup/                      # Database backup configurations
+│   ├── backup-to-azure-cronjob.yaml   # CronJob for automated backups
+│   ├── restore-backup.sh        # Script to restore from backup
+│   └── setup-backup.sh          # Setup backup infrastructure
+│
+├── scripts/                     # PostgreSQL utility scripts
+│   └── verify_replication.sh    # Verify streaming replication status
+│
+└── README.md                    # PostgreSQL deployment documentation
+```
+
+### Other Kubernetes Files
+
+```
+kubernetes/
+└── setup-appgw.sh               # Script to setup Application Gateway AGIC
+```
+
+---
+
+## Scripts Directory (`scripts/`)
+
+Automation scripts for deployment, cleanup, and disaster recovery operations.
+
+```
+scripts/
+├── deploy/                      # Deployment scripts
+│   ├── deploy_primary.sh        # Deploy primary region (with Terraform dry run)
+│   └── deploy_dr.sh             # Deploy DR region (with Terraform dry run)
+│
+├── cleanup/                     # Cleanup scripts
+│   ├── cleanup_primary.sh       # Cleanup primary region (with destroy dry run)
+│   └── cleanup_dr.sh            # Cleanup DR region (with destroy dry run)
+│
+└── failover/                    # Disaster recovery scripts
+    ├── failover_full_stack.sh   # Failover from primary to DR
+    ├── failback_full_stack.sh   # Failback from DR to primary
+    └── README.md                # Failover procedures documentation
+```
