@@ -10,11 +10,9 @@ PRIMARY_CLUSTER="primary-aks-cluster"
 DR_RG="azure-meun-dr-rg"
 DR_CLUSTER="dr-aks-cluster"
 
-echo "========================================"
+
 echo "  Complete Failover: Primary → DR"
 echo "  (JupyterHub + Microservices)"
-echo "========================================"
-echo ""
 
 # === STEP 1: Connect to Primary Cluster ===
 echo "[1/8] Connecting to Primary cluster..."
@@ -30,9 +28,9 @@ kubectl scale deployment hub -n jupyterhub --replicas=0
 echo "JupyterHub hub scaled to 0"
 
 # Scale down Microservices
-kubectl scale deployment user-service -n microservices --replicas=0
-kubectl scale deployment order-service -n microservices --replicas=0
-kubectl scale deployment notification-service -n microservices --replicas=0
+kubectl scale deployment user-service -n app --replicas=0
+kubectl scale deployment order-service -n app --replicas=0
+kubectl scale deployment notification-service -n app --replicas=0
 echo "Microservices scaled to 0"
 echo ""
 
@@ -104,16 +102,16 @@ kubectl scale deployment hub -n jupyterhub --replicas=1
 echo "JupyterHub hub scaled to 1"
 
 # Scale up Microservices
-kubectl scale deployment user-service -n microservices --replicas=1
-kubectl scale deployment order-service -n microservices --replicas=1
-kubectl scale deployment notification-service -n microservices --replicas=1
+kubectl scale deployment user-service -n app --replicas=1
+kubectl scale deployment order-service -n app --replicas=1
+kubectl scale deployment notification-service -n app --replicas=1
 echo "Microservices scaled to 1"
 
 echo "Waiting for pods to be ready..."
 kubectl wait --for=condition=ready --timeout=120s pod -l component=hub -n jupyterhub
-kubectl wait --for=condition=ready --timeout=120s pod -l app=user-service -n microservices
-kubectl wait --for=condition=ready --timeout=120s pod -l app=order-service -n microservices
-kubectl wait --for=condition=ready --timeout=120s pod -l app=notification-service -n microservices
+kubectl wait --for=condition=ready --timeout=120s pod -l app=user-service -n app
+kubectl wait --for=condition=ready --timeout=120s pod -l app=order-service -n app
+kubectl wait --for=condition=ready --timeout=120s pod -l app=notification-service -n app
 
 # Check JupyterHub pod health
 HUB_POD=$(kubectl get pod -n jupyterhub -l component=hub -o jsonpath='{.items[0].metadata.name}')
