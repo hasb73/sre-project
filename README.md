@@ -294,6 +294,7 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 9. Verifies pod health and readiness
 
 **RTO:** ~2-5 minutes for the promote and pods to scale
+
 **RPO:** ~15 minutes at the most due to the scheduled file sync cron job,immediate if the file sync runs as part of the script
 
 
@@ -322,7 +323,7 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 
 ## Teardown Instructions
 
-### Automated Cleanup (Recommended)
+### Automated Cleanup
 
 ```bash
 # Preview resources to be deleted
@@ -339,8 +340,7 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 **Target: < 15 minutes**
 
 - Achieved through PostgreSQL streaming replication
-- Replication lag typically < 1 second under normal conditions
-- Worst case: Up to 5 minutes of data loss if primary fails before replication completes
+- Replication lag typically is below 1 second
 - The azcopy cron jobs runs every 15minutes, but the failover script does an ondemand copy so the RPO can be under ~2 minutes
 
 ### RTO (Recovery Time Objective)
@@ -348,8 +348,8 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 **Target: < 5 minutes**
 
 **Breakdown:**
-- Detection: 1-2 minutes (automated monitoring alerts)
+- Detection: 1-2 minutes
 - Script execution (failover, pod readines) - 2-3 minutes
-- DNS Propagation: 1 minute (TTL is 10s and health probe is 10s)
+- Traffic Manager DNS Propagation: ~ 1 minute (TTL is 10s and health probe is 10s)
 
 
