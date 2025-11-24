@@ -33,7 +33,7 @@ echo "JupyterHub hub scaled to 0"
 # Scale down Microservices
 kubectl scale deployment business-logic -n app --replicas=0
 kubectl scale deployment data-ingest -n app --replicas=0
-kubectl scale deployment frontend-api-n app --replicas=0
+kubectl scale deployment frontend-api -n app --replicas=0
 echo "Microservices scaled to 0"
 echo ""
 
@@ -44,7 +44,7 @@ echo "[3/9] Starting delta sync (Azure Files DR to Primary)..."
 kubectl delete job azure-files-sync-dr-to-primary -n jupyterhub --ignore-not-found=true
 
 # Apply the sync job
-kubectl apply -f kubernetes/jupyterhub/azcopy-dr-to-primary-job.yaml
+kubectl apply -f kubernetes/jupyterhub/dr/azcopy-dr-to-primary-job.yaml
 
 echo "Waiting for sync job to complete..."
 kubectl wait --for=condition=complete --timeout=300s job/azure-files-sync-dr-to-primary -n jupyterhub
