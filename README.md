@@ -296,7 +296,7 @@ kubectl wait --for=condition=ready pod -l component=hub -n jupyterhub --timeout=
 1. Connects to Primary cluster
 2. Scales down JupyterHub hub (stops accepting new users)
 3. Triggers Azure Files delta sync (Primary → DR)
-4. Connects to DR cluster
+4. Connects to DR cluster ( Start from Here if Primary is hard down)
 5. Checks DR database pod status
 6. Verifies database recovery status
 7. Promotes DR database to primary
