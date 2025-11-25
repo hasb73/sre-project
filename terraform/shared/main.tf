@@ -62,7 +62,7 @@ resource "azurerm_traffic_manager_profile" "microservices" {
   traffic_routing_method = "Priority"
 
   dns_config {
-    relative_name = "microservices"
+    relative_name = "microservice"
     ttl           = 10
   }
 

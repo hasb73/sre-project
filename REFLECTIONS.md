@@ -90,20 +90,10 @@
   - [ ] Database performance tuning completed
   - [ ] Replication monitoring alerts configured
 
-- [ ] **Operations**
-  - [ ] CI/CD pipeline configured
-  - [ ] GitOps workflow implemented (optional)
-  - [ ] Change management process defined
-  - [ ] Incident response procedures documented
-  - [ ] Escalation paths defined
-  - [ ] Team training completed
+- [ ] **Release Management**
+  - [ ] CI/CD pipelines with Gitlab or Azure DevOps configured
+  - [ ] GitOps implementation for kubernetes manifests
 
-- [ ] **Documentation**
-  - [ ] Architecture diagrams updated
-  - [ ] Deployment procedures documented
-  - [ ] Troubleshooting guides created
-  - [ ] API documentation published
-  - [ ] Runbooks reviewed and approved
 
 
 ## Cost Optimization Strategies
