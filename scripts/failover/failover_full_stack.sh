@@ -14,6 +14,9 @@ DR_CLUSTER="dr-aks-cluster"
 echo "  Complete Failover: Primary → DR"
 echo "  (JupyterHub + Microservices)"
 
+# Start timer
+START_TIME=$(date +%s)
+
 # === STEP 1: Connect to Primary Cluster ===
 echo "[1/8] Connecting to Primary cluster..."
 az aks get-credentials --resource-group $PRIMARY_RG --name $PRIMARY_CLUSTER --overwrite-existing > /dev/null 2>&1
@@ -32,6 +35,11 @@ kubectl scale deployment business-logic -n app --replicas=0
 kubectl scale deployment data-ingest -n app --replicas=0
 kubectl scale deployment frontend-api -n app --replicas=0
 echo "Microservices scaled to 0"
+
+# Delete user pods
+echo "Deleting user pods..."
+kubectl delete pods -n jupyterhub -l component=singleuser-server --grace-period=30 || true
+echo "User pods deleted"
 echo ""
 
 # === STEP 3: Trigger Delta Sync (Azure Files) ===
@@ -133,5 +141,14 @@ fi
 echo "All applications are running and ready"
 echo ""
 
-echo "  Failover Completed Successfully!"
+# Calculate elapsed time
+END_TIME=$(date +%s)
+ELAPSED_TIME=$((END_TIME - START_TIME))
+MINUTES=$((ELAPSED_TIME / 60))
+SECONDS=$((ELAPSED_TIME % 60))
+
+echo "  Failover Completed"
+echo ""
+echo "Total execution time: ${MINUTES}m ${SECONDS}s"
+echo ""
 

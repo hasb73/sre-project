@@ -16,6 +16,8 @@ echo "  (JupyterHub + Microservices)"
 echo "="
 echo ""
 
+# Start timer
+START_TIME=$(date +%s)
 
 # STEP 1: Connect to DR Cluster 
 echo "[1/9] Connecting to DR cluster..."
@@ -35,6 +37,11 @@ kubectl scale deployment business-logic -n app --replicas=0
 kubectl scale deployment data-ingest -n app --replicas=0
 kubectl scale deployment frontend-api -n app --replicas=0
 echo "Microservices scaled to 0"
+
+# Delete user pods
+echo "Deleting user pods..."
+kubectl delete pods -n jupyterhub -l component=singleuser-server --grace-period=30 || true
+echo "User pods deleted"
 echo ""
 
 # STEP 3: Trigger Delta Sync (Azure Files DR to Primary) 
@@ -175,5 +182,13 @@ fi
 echo "All applications are running and ready"
 echo ""
 
+# Calculate elapsed time
+END_TIME=$(date +%s)
+ELAPSED_TIME=$((END_TIME - START_TIME))
+MINUTES=$((ELAPSED_TIME / 60))
+SECONDS=$((ELAPSED_TIME % 60))
+
 #  Summary 
-echo "Failback Completed Successfully"
+echo "  Failback Completed"
+echo "Total execution time: ${MINUTES}m ${SECONDS}s"
+echo ""
